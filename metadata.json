@@ -1,0 +1,6 @@
+{
+  "name": "CCU and RNG Asset Database",
+  "description": "A comprehensive full-stack asset database for tracking Cargo Carrying Units (CCUs), managing Visual and MPI certificate expirations, and logging Load Out/Back Load transactions.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

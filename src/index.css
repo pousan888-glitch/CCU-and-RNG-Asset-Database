@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+/* Ensure all select dropdowns and native options are always readable with dark text on white backgrounds */
+select,
+option {
+  color: #0f172a !important;
+  background-color: #ffffff !important;
+}
+
+/* Ensure inputs, textareas, and date pickers on light cards are always styled with high-contrast text and correct background */
+input:not(.bg-slate-900):not(.bg-slate-950):not([type="checkbox"]):not([type="radio"]),
+textarea:not(.bg-slate-900):not(.bg-slate-950) {
+  color: #0f172a !important;
+  background-color: #ffffff !important;
+}
+
+/* Guarantee placeholder texts are always easily visible but elegant */
+input:not(.bg-slate-900):not(.bg-slate-950)::placeholder,
+textarea:not(.bg-slate-900):not(.bg-slate-950)::placeholder {
+  color: #64748b !important;
+  opacity: 1 !important;
+}
+
+/* Ensure system date-picker UI components and dropdown menus are displayed correctly in light scheme */
+input[type="date"] {
+  color-scheme: light !important;
+}
+
