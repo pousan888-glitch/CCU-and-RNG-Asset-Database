@@ -36,6 +36,13 @@ export interface Asset {
   tareWeightKg?: number;
   payloadKg?: number;
   grossWeightKg?: number;
+  
+  // Lifting gear and load test certification parameters
+  ltUnit?: string;
+  ltSling?: string;
+  slingId?: string;
+  ltShackle?: string;
+  shackleId?: string;
 }
 
 export enum TransactionType {

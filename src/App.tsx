@@ -25,6 +25,8 @@ import {
   ClipboardCheck,
   Settings as SettingsIcon
 } from "lucide-react";
+import { ClientDbStore } from "./utils/localStorageStore";
+import { exportExcelClient } from "./utils/clientExport";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<"dashboard" | "database" | "transactions" | "checksheets" | "settings">("dashboard");
@@ -35,11 +37,14 @@ export default function App() {
   const [rigs, setRigs] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorStatus, setErrorStatus] = useState("");
+  const [isStandalone, setIsStandalone] = useState(false);
 
   // Load backend details
   const fetchState = async () => {
     try {
       setLoading(true);
+      setErrorStatus("");
+
       const assetsRes = await fetch("/api/assets");
       const txsRes = await fetch("/api/transactions");
       
@@ -75,10 +80,16 @@ export default function App() {
 
       setVessels(vesselsData);
       setRigs(rigsData);
-      setErrorStatus("");
+      setIsStandalone(false);
     } catch (err: any) {
-      console.error(err);
-      setErrorStatus("Could not synchronize database. Please verify your Express container server is online.");
+      console.warn("Express server offline. Enabling client standalone LocalStorage mode:", err);
+      setIsStandalone(true);
+      
+      // Pull data from Client local database
+      setAssets(ClientDbStore.getAssets());
+      setTransactions(ClientDbStore.getTransactions());
+      setVessels(ClientDbStore.getVessels());
+      setRigs(ClientDbStore.getRigs());
     } finally {
       setLoading(false);
     }
@@ -86,6 +97,11 @@ export default function App() {
 
   const handleUpdateVessels = async (updatedVessels: string[]) => {
     try {
+      if (isStandalone) {
+        ClientDbStore.setVessels(updatedVessels);
+        await fetchState();
+        return;
+      }
       const res = await fetch("/api/vessels", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -100,6 +116,11 @@ export default function App() {
 
   const handleUpdateRigs = async (updatedRigs: string[]) => {
     try {
+      if (isStandalone) {
+        ClientDbStore.setRigs(updatedRigs);
+        await fetchState();
+        return;
+      }
       const res = await fetch("/api/rigs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -118,6 +139,11 @@ export default function App() {
 
   const handleCreateAsset = async (newAsset: Asset) => {
     try {
+      if (isStandalone) {
+        ClientDbStore.addAsset(newAsset);
+        await fetchState();
+        return;
+      }
       const res = await fetch("/api/assets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -134,6 +160,20 @@ export default function App() {
 
   const handleCreateTransaction = async (txOrTxs: Omit<Transaction, "id"> | Omit<Transaction, "id">[]) => {
     try {
+      if (isStandalone) {
+        const list = Array.isArray(txOrTxs) ? txOrTxs : [txOrTxs];
+        for (const tx of list) {
+          ClientDbStore.addTransaction(tx);
+          if (tx.type === "Back Load") {
+            // Auto-create backload checklists in browser like server.ts does
+            ClientDbStore.createChecksheetForCcus([tx.ccuNumber], tx.date);
+          }
+        }
+        await fetchState();
+        setActiveTab("dashboard");
+        return;
+      }
+
       const isArray = Array.isArray(txOrTxs);
       const url = isArray ? "/api/transactions/batch" : "/api/transactions";
       const bodyPayload = isArray ? { transactions: txOrTxs } : txOrTxs;
@@ -155,7 +195,11 @@ export default function App() {
     }
   };
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
+    if (isStandalone) {
+      await exportExcelClient(assets, transactions);
+      return;
+    }
     // Direct link to download Multi-Sheet Excel endpoint (Feature E)
     window.open("/api/export", "_blank");
   };
@@ -224,6 +268,14 @@ export default function App() {
           <span>⚠️</span>
           <span>{errorStatus}</span>
           <button onClick={fetchState} className="underline font-bold ml-2">Retry Connection</button>
+        </div>
+      )}
+
+      {/* Standalone status banner */}
+      {isStandalone && (
+        <div className="bg-amber-500 text-slate-950 font-bold text-xs px-4 py-2 text-center flex items-center justify-center space-x-2 shadow-inner">
+          <span className="w-2 h-2 bg-slate-950 rounded-full animate-ping mr-1"></span>
+          <span>⚡ STANDALONE LOCAL MODE ACTIVE: Running securely inside browser local storage (Active for Serverless / Offline / Vercel Deployments)</span>
         </div>
       )}
 
@@ -332,6 +384,7 @@ export default function App() {
               <BackloadChecksheets 
                 assets={assets} 
                 onRefreshDatabase={fetchState} 
+                isStandalone={isStandalone}
               />
             )}
 
@@ -343,6 +396,7 @@ export default function App() {
                 rigs={rigs}
                 onUpdateVessels={handleUpdateVessels}
                 onUpdateRigs={handleUpdateRigs}
+                isStandalone={isStandalone}
               />
             )}
           </div>

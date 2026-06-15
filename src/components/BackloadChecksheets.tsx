@@ -24,9 +24,10 @@ import {
 interface BackloadChecksheetsProps {
   assets: Asset[];
   onRefreshDatabase: () => void;
+  isStandalone?: boolean;
 }
 
-export default function BackloadChecksheets({ assets, onRefreshDatabase }: BackloadChecksheetsProps) {
+export default function BackloadChecksheets({ assets, onRefreshDatabase, isStandalone }: BackloadChecksheetsProps) {
   const [checksheets, setChecksheets] = useState<BackloadChecksheet[]>([]);
   const [selectedSheetId, setSelectedSheetId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -53,6 +54,17 @@ export default function BackloadChecksheets({ assets, onRefreshDatabase }: Backl
   const fetchChecksheets = async () => {
     try {
       setLoading(true);
+      
+      if (isStandalone) {
+        const { ClientDbStore } = await import("../utils/localStorageStore");
+        const data = ClientDbStore.getChecksheets();
+        setChecksheets(data);
+        if (data.length > 0 && !selectedSheetId) {
+          setSelectedSheetId(data[0].id);
+        }
+        return;
+      }
+      
       const res = await fetch("/api/checksheets");
       if (res.ok) {
         const data = await res.json();
@@ -70,11 +82,21 @@ export default function BackloadChecksheets({ assets, onRefreshDatabase }: Backl
 
   useEffect(() => {
     fetchChecksheets();
-  }, []);
+  }, [isStandalone]);
 
   const handleSaveSheet = async (sheetToSave: BackloadChecksheet) => {
     try {
       setSaving(true);
+      
+      if (isStandalone) {
+        const { ClientDbStore } = await import("../utils/localStorageStore");
+        const updated = ClientDbStore.saveChecksheet(sheetToSave);
+        setChecksheets(prev => prev.map(s => s.id === updated.id ? updated : s));
+        onRefreshDatabase();
+        showToast(`บันทึกข้อมูล Checksheet ${updated.id} ไปยังฐานข้อมูลเบราว์เซอร์เรียบร้อยแล้ว!`, "success");
+        return;
+      }
+      
       const res = await fetch("/api/checksheets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -106,6 +128,17 @@ export default function BackloadChecksheets({ assets, onRefreshDatabase }: Backl
     setDeleteConfirmId(null);
 
     try {
+      if (isStandalone) {
+        const { ClientDbStore } = await import("../utils/localStorageStore");
+        ClientDbStore.deleteChecksheet(id);
+        setChecksheets(prev => prev.filter(s => s.id !== id));
+        if (selectedSheetId === id) {
+          setSelectedSheetId(null);
+        }
+        showToast(`ลบข้อมูล Checksheet ${id} เรียบร้อยแล้ว`, "success");
+        return;
+      }
+      
       const res = await fetch(`/api/checksheets/${id}`, {
         method: "DELETE"
       });

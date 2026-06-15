@@ -29,6 +29,7 @@ interface SettingsProps {
   rigs?: string[];
   onUpdateVessels?: (updatedVessels: string[]) => Promise<void>;
   onUpdateRigs?: (updatedRigs: string[]) => Promise<void>;
+  isStandalone?: boolean;
 }
 
 export default function Settings({ 
@@ -37,7 +38,8 @@ export default function Settings({
   vessels,
   rigs,
   onUpdateVessels,
-  onUpdateRigs
+  onUpdateRigs,
+  isStandalone
 }: SettingsProps) {
   const vesselsList = vessels && vessels.length > 0 ? vessels : ["HD-38", "HD-29", "HD-68", "TMS Andaman"];
   const rigsList = rigs && rigs.length > 0 ? rigs : ["GHTH", "SKL", "FREE ZONE", "RNG PORT"];
@@ -162,6 +164,13 @@ export default function Settings({
       const payloadHeader = findHeader(["payload", "payloadkg", "payload weight"]);
       const grossHeader = findHeader(["gross", "grossweight", "grossweightkg", "gross weight"]);
 
+      // Unhidden Lifting Gear and Load Test Columns
+      const ltUnitHeader = findHeader(["ltunit", "loadtestunit", "lt unit", "load test unit", "unitloadtest"]);
+      const ltSlingHeader = findHeader(["ltsling", "loadtestsling", "lt sling", "load test sling", "slingloadtest"]);
+      const slingIdHeader = findHeader(["slingid", "sling id", "slingno", "sling s/n", "sling serial"]);
+      const ltShackleHeader = findHeader(["ltshackle", "loadtestshackle", "lt shackle", "load test shackle", "shackleloadtest"]);
+      const shackleIdHeader = findHeader(["shackleid", "shackle id", "shackleno", "shackle s/n", "shackle serial"]);
+
       if (ccuHeader) feedbacks.push(`✅ S/N (CCU Number) mapped to column: "${ccuHeader}"`);
       else feedbacks.push(`⚠️ S/N column not matched. Defaulting to first column: "${originalHeaders[0]}"`);
 
@@ -183,6 +192,13 @@ export default function Settings({
       if (tareHeader) feedbacks.push(`✅ Tare Weight mapped to column: "${tareHeader}"`);
       if (payloadHeader) feedbacks.push(`✅ Payload mapped to column: "${payloadHeader}"`);
       if (grossHeader) feedbacks.push(`✅ Gross Weight mapped to column: "${grossHeader}"`);
+
+      // Lifting gear mapping feedbacks
+      if (ltUnitHeader) feedbacks.push(`✅ LT Unit (Load Test Unit) mapped to column: "${ltUnitHeader}"`);
+      if (ltSlingHeader) feedbacks.push(`✅ LT Sling (Load Test Sling) mapped to column: "${ltSlingHeader}"`);
+      if (slingIdHeader) feedbacks.push(`✅ Sling ID mapped to column: "${slingIdHeader}"`);
+      if (ltShackleHeader) feedbacks.push(`✅ LT Shackle (Load Test Shackle) mapped to column: "${ltShackleHeader}"`);
+      if (shackleIdHeader) feedbacks.push(`✅ Shackle ID mapped to column: "${shackleIdHeader}"`);
 
       setMappingFeedbacks(feedbacks);
 
@@ -254,7 +270,14 @@ export default function Settings({
           heightCm: heightVal,
           tareWeightKg: tareVal,
           payloadKg: payloadVal,
-          grossWeightKg: grossVal
+          grossWeightKg: grossVal,
+          
+          // Set new parsed lifting gear parameters
+          ltUnit: row[ltUnitHeader || ""] ? String(row[ltUnitHeader || ""]).trim() : undefined,
+          ltSling: row[ltSlingHeader || ""] ? String(row[ltSlingHeader || ""]).trim() : undefined,
+          slingId: row[slingIdHeader || ""] ? String(row[slingIdHeader || ""]).trim() : undefined,
+          ltShackle: row[ltShackleHeader || ""] ? String(row[ltShackleHeader || ""]).trim() : undefined,
+          shackleId: row[shackleIdHeader || ""] ? String(row[shackleIdHeader || ""]).trim() : undefined
         });
       });
 
@@ -331,6 +354,15 @@ export default function Settings({
       setImportLoading(true);
       const clearFirst = importMode === "wipe";
       
+      if (isStandalone) {
+        const { ClientDbStore } = await import("../utils/localStorageStore");
+        ClientDbStore.bulkImport(fileData, clearFirst);
+        setImportResult({ success: true, count: fileData.length });
+        clearFile();
+        await onRefreshData();
+        return;
+      }
+      
       const res = await fetch("/api/assets/bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -366,6 +398,19 @@ export default function Settings({
 
     try {
       setClearing(true);
+      
+      if (isStandalone) {
+        const { ClientDbStore } = await import("../utils/localStorageStore");
+        ClientDbStore.clearAllData();
+        setClearSuccess(true);
+        setConfirmInput("");
+        await onRefreshData();
+        setTimeout(() => {
+          setClearSuccess(false);
+        }, 5000);
+        return;
+      }
+      
       const res = await fetch("/api/clear", { method: "POST" });
       if (!res.ok) throw new Error("Clear command rejected by RNG service.");
 
@@ -576,6 +621,9 @@ export default function Settings({
               <p>Width / Length / Height</p>
               <p>Tare / Payload</p>
               <p>Remark / Defect</p>
+              <p>LT Unit / LT Sling</p>
+              <p>Sling ID / LT Shackle</p>
+              <p>Shackle ID</p>
             </div>
           </div>
 
